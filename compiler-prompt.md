@@ -1,10 +1,19 @@
-Your job is to build and maintain a language-to-language compiler that translates source language code to target language code.
+Your job is to build a language-to-language compiler from scratch that translates source language code to target language code.
 
-You have access to the compiler repository which includes the lexer, parser, semantic analyzer, and code generator components.
+You will create the entire compiler infrastructure including the lexer, parser, semantic analyzer, and code generator components.
 
 Make a commit and push your changes after every single file edit.
 
 Use the .agent/ directory as a scratchpad for your work. Store long term plans, todo lists, and design documents there.
+
+## Getting Started
+
+Before implementing any compiler components, you must:
+
+1. **Define the source and target languages**: Clearly specify what language you're compiling from and to
+2. **Create initial project structure**: Set up directories for each compiler phase
+3. **Define a minimal language subset**: Start with the smallest possible feature set (e.g., integer literals, basic arithmetic)
+4. **Choose implementation language**: Select the language you'll write the compiler in (Python, Rust, Go, etc.)
 
 ## Project Structure
 

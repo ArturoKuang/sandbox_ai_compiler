@@ -8,8 +8,9 @@ from typing import List, Optional
 from compiler.lexer import Token, TokenType
 from .ast_nodes import (
     Program, Statement, Declaration, Assignment, PrintStatement,
-    IfStatement, WhileStatement,
-    Expression, BinaryOp, UnaryOp, Number, Identifier, Boolean
+    IfStatement, WhileStatement, ForStatement, FunctionDeclaration, ReturnStatement,
+    Expression, BinaryOp, UnaryOp, Number, Identifier, Boolean,
+    ArrayLiteral, ArrayAccess, FunctionCall
 )
 
 
@@ -78,6 +79,9 @@ class Parser:
                   | print_stmt
                   | if_stmt
                   | while_stmt
+                  | for_stmt
+                  | function_decl
+                  | return_stmt
         """
         token = self.current_token()
 
@@ -97,8 +101,21 @@ class Parser:
         elif token.type == TokenType.WHILE:
             return self.parse_while_statement()
 
+        # Check for for statement
+        elif token.type == TokenType.FOR:
+            return self.parse_for_statement()
+
+        # Check for function declaration
+        elif token.type == TokenType.FUNCTION:
+            return self.parse_function_declaration()
+
+        # Check for return statement
+        elif token.type == TokenType.RETURN:
+            return self.parse_return_statement()
+
         # Check for assignment (starts with identifier)
         elif token.type == TokenType.IDENTIFIER:
+            # Could be assignment or array assignment
             return self.parse_assignment()
 
         else:
@@ -129,10 +146,28 @@ class Parser:
 
     def parse_assignment(self) -> Assignment:
         """
-        assignment : IDENTIFIER ASSIGN expression SEMICOLON
+        assignment : IDENTIFIER (LBRACKET expression RBRACKET)? ASSIGN expression SEMICOLON
+
+        Note: Array element assignment is handled by treating arr[i] = value as a special form
         """
         id_token = self.expect(TokenType.IDENTIFIER)
         name = id_token.value
+
+        # Check for array element assignment
+        if self.current_token().type == TokenType.LBRACKET:
+            self.advance()
+            index = self.parse_expression()
+            self.expect(TokenType.RBRACKET)
+            self.expect(TokenType.ASSIGN)
+            value = self.parse_expression()
+            self.expect(TokenType.SEMICOLON)
+
+            # Create a special identifier name for array element assignment
+            # We'll handle this in codegen by detecting the pattern
+            # For now, store the array access node as a special assignment target
+            # We need to extend Assignment node, but for now use a workaround
+            # Store name as "name[index_expr]" - will need special handling in codegen
+            return Assignment(name + "[INDEX]", value, id_token.line, id_token.column)
 
         self.expect(TokenType.ASSIGN)
         value = self.parse_expression()
@@ -197,6 +232,119 @@ class Parser:
         self.expect(TokenType.RBRACE)
 
         return WhileStatement(condition, body, while_token.line, while_token.column)
+
+    def parse_for_statement(self) -> ForStatement:
+        """
+        for_stmt : FOR LPAREN (declaration | assignment)? SEMICOLON expression? SEMICOLON (assignment)? RPAREN LBRACE statement* RBRACE
+        """
+        for_token = self.expect(TokenType.FOR)
+        self.expect(TokenType.LPAREN)
+
+        # Parse init (optional)
+        init = None
+        if self.current_token().type != TokenType.SEMICOLON:
+            if self.current_token().type in (TokenType.INT, TokenType.BOOL):
+                init = self.parse_declaration()
+                # Declaration already consumes the semicolon, so we skip expecting it
+            else:
+                init = self.parse_assignment()
+                # Assignment already consumes the semicolon
+        else:
+            self.advance()  # skip semicolon
+
+        # Parse condition (optional)
+        condition = None
+        if self.current_token().type != TokenType.SEMICOLON:
+            condition = self.parse_expression()
+        self.expect(TokenType.SEMICOLON)
+
+        # Parse update (optional)
+        update = None
+        if self.current_token().type != TokenType.RPAREN:
+            # For update, we parse as assignment but without semicolon
+            id_token = self.expect(TokenType.IDENTIFIER)
+            name = id_token.value
+            self.expect(TokenType.ASSIGN)
+            value = self.parse_expression()
+            update = Assignment(name, value, id_token.line, id_token.column)
+
+        self.expect(TokenType.RPAREN)
+        self.expect(TokenType.LBRACE)
+
+        # Parse body
+        body = []
+        while self.current_token().type != TokenType.RBRACE:
+            body.append(self.parse_statement())
+        self.expect(TokenType.RBRACE)
+
+        return ForStatement(init, condition, update, body, for_token.line, for_token.column)
+
+    def parse_function_declaration(self) -> FunctionDeclaration:
+        """
+        function_decl : FUNCTION IDENTIFIER LPAREN params RPAREN LBRACE statement* RBRACE
+        params : (type IDENTIFIER (COMMA type IDENTIFIER)*)?
+        """
+        func_token = self.expect(TokenType.FUNCTION)
+        name_token = self.expect(TokenType.IDENTIFIER)
+        name = name_token.value
+
+        self.expect(TokenType.LPAREN)
+
+        # Parse parameters
+        params = []
+        if self.current_token().type in (TokenType.INT, TokenType.BOOL):
+            # First parameter
+            param_type_token = self.current_token()
+            if param_type_token.type not in (TokenType.INT, TokenType.BOOL):
+                raise ParserError(f"Expected type, got {param_type_token.type.name}", param_type_token)
+            self.advance()
+            param_type = param_type_token.value
+
+            param_name_token = self.expect(TokenType.IDENTIFIER)
+            param_name = param_name_token.value
+            params.append((param_type, param_name))
+
+            # Remaining parameters
+            while self.current_token().type == TokenType.COMMA:
+                self.advance()
+                param_type_token = self.current_token()
+                if param_type_token.type not in (TokenType.INT, TokenType.BOOL):
+                    raise ParserError(f"Expected type, got {param_type_token.type.name}", param_type_token)
+                self.advance()
+                param_type = param_type_token.value
+
+                param_name_token = self.expect(TokenType.IDENTIFIER)
+                param_name = param_name_token.value
+                params.append((param_type, param_name))
+
+        self.expect(TokenType.RPAREN)
+
+        # For simplicity, assume return type is int (we can enhance this later)
+        return_type = "int"
+
+        self.expect(TokenType.LBRACE)
+
+        # Parse body
+        body = []
+        while self.current_token().type != TokenType.RBRACE:
+            body.append(self.parse_statement())
+        self.expect(TokenType.RBRACE)
+
+        return FunctionDeclaration(name, params, return_type, body, func_token.line, func_token.column)
+
+    def parse_return_statement(self) -> ReturnStatement:
+        """
+        return_stmt : RETURN expression? SEMICOLON
+        """
+        return_token = self.expect(TokenType.RETURN)
+
+        expression = None
+        if self.current_token().type != TokenType.SEMICOLON:
+            expression = self.parse_expression()
+
+        self.expect(TokenType.SEMICOLON)
+
+        return ReturnStatement(expression, return_token.line, return_token.column)
 
     def parse_expression(self) -> Expression:
         """
@@ -301,7 +449,8 @@ class Parser:
         factor : NUMBER
                | TRUE
                | FALSE
-               | IDENTIFIER
+               | IDENTIFIER (LBRACKET expression RBRACKET | LPAREN args RPAREN)?
+               | LBRACKET array_elements RBRACKET
                | LPAREN expression RPAREN
         """
         token = self.current_token()
@@ -320,10 +469,45 @@ class Parser:
             self.advance()
             return Boolean(False, token.line, token.column)
 
-        # Identifier (variable reference)
+        # Identifier (variable reference, array access, or function call)
         elif token.type == TokenType.IDENTIFIER:
+            name = token.value
             self.advance()
-            return Identifier(token.value, token.line, token.column)
+
+            # Check for array access
+            if self.current_token().type == TokenType.LBRACKET:
+                self.advance()
+                index = self.parse_expression()
+                self.expect(TokenType.RBRACKET)
+                return ArrayAccess(Identifier(name, token.line, token.column), index, token.line, token.column)
+
+            # Check for function call
+            elif self.current_token().type == TokenType.LPAREN:
+                self.advance()
+                arguments = []
+                if self.current_token().type != TokenType.RPAREN:
+                    arguments.append(self.parse_expression())
+                    while self.current_token().type == TokenType.COMMA:
+                        self.advance()
+                        arguments.append(self.parse_expression())
+                self.expect(TokenType.RPAREN)
+                return FunctionCall(name, arguments, token.line, token.column)
+
+            # Just an identifier
+            else:
+                return Identifier(name, token.line, token.column)
+
+        # Array literal
+        elif token.type == TokenType.LBRACKET:
+            self.advance()
+            elements = []
+            if self.current_token().type != TokenType.RBRACKET:
+                elements.append(self.parse_expression())
+                while self.current_token().type == TokenType.COMMA:
+                    self.advance()
+                    elements.append(self.parse_expression())
+            self.expect(TokenType.RBRACKET)
+            return ArrayLiteral(elements, token.line, token.column)
 
         # Parenthesized expression
         elif token.type == TokenType.LPAREN:

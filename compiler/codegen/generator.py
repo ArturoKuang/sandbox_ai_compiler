@@ -7,8 +7,9 @@ Converts AST to Python source code.
 from typing import List
 from compiler.parser.ast_nodes import (
     ASTNode, Program, Statement, Declaration, Assignment, PrintStatement,
-    IfStatement, WhileStatement,
-    Expression, BinaryOp, UnaryOp, Number, Identifier, Boolean
+    IfStatement, WhileStatement, ForStatement, FunctionDeclaration, ReturnStatement,
+    Expression, BinaryOp, UnaryOp, Number, Identifier, Boolean,
+    ArrayLiteral, ArrayAccess, FunctionCall
 )
 
 
@@ -47,6 +48,12 @@ class CodeGenerator:
             self.visit_if_statement(node)
         elif isinstance(node, WhileStatement):
             self.visit_while_statement(node)
+        elif isinstance(node, ForStatement):
+            self.visit_for_statement(node)
+        elif isinstance(node, FunctionDeclaration):
+            self.visit_function_declaration(node)
+        elif isinstance(node, ReturnStatement):
+            self.visit_return_statement(node)
 
     def visit_declaration(self, node: Declaration) -> None:
         """
@@ -110,6 +117,65 @@ class CodeGenerator:
             self.visit_statement(stmt)
         self.indent_level -= 1
 
+    def visit_for_statement(self, node: ForStatement) -> None:
+        """
+        Visits a for statement node.
+        Converts C-style for loop to Python while loop.
+        """
+        # Emit init if present
+        if node.init:
+            self.visit_statement(node.init)
+
+        # Convert to while loop
+        condition_code = self.visit_expression(node.condition) if node.condition else "True"
+        self.emit(f"while {condition_code}:")
+        self.indent_level += 1
+
+        # Emit body
+        for stmt in node.body:
+            self.visit_statement(stmt)
+
+        # Emit update if present
+        if node.update:
+            self.visit_statement(node.update)
+
+        self.indent_level -= 1
+
+    def visit_function_declaration(self, node: FunctionDeclaration) -> None:
+        """
+        Visits a function declaration node.
+        Generates: def name(params): body
+        """
+        # Build parameter list
+        params_str = ", ".join([f"{name}: {self.get_python_type(ptype)}" for ptype, name in node.params])
+
+        # Emit function signature
+        return_type_annotation = f" -> {self.get_python_type(node.return_type)}" if node.return_type else ""
+        self.emit(f"def {node.name}({params_str}){return_type_annotation}:")
+
+        self.indent_level += 1
+
+        # Emit body
+        if node.body:
+            for stmt in node.body:
+                self.visit_statement(stmt)
+        else:
+            self.emit("pass")
+
+        self.indent_level -= 1
+        self.emit("")  # Empty line after function
+
+    def visit_return_statement(self, node: ReturnStatement) -> None:
+        """
+        Visits a return statement node.
+        Generates: return expression
+        """
+        if node.expression:
+            expr_code = self.visit_expression(node.expression)
+            self.emit(f"return {expr_code}")
+        else:
+            self.emit("return")
+
     def visit_expression(self, node: Expression) -> str:
         """
         Visits an expression node and returns the generated code.
@@ -124,6 +190,12 @@ class CodeGenerator:
             return self.visit_binary_op(node)
         elif isinstance(node, UnaryOp):
             return self.visit_unary_op(node)
+        elif isinstance(node, ArrayLiteral):
+            return self.visit_array_literal(node)
+        elif isinstance(node, ArrayAccess):
+            return self.visit_array_access(node)
+        elif isinstance(node, FunctionCall):
+            return self.visit_function_call(node)
         return ""
 
     def visit_number(self, node: Number) -> str:
@@ -174,6 +246,31 @@ class CodeGenerator:
         # Add parentheses for clarity
         # For simple cases, we could optimize this, but for correctness we always add them
         return f"({left_code} {operator} {right_code})"
+
+    def visit_array_literal(self, node: ArrayLiteral) -> str:
+        """
+        Visits an array literal node.
+        Generates: [elem1, elem2, ...]
+        """
+        elements_code = [self.visit_expression(elem) for elem in node.elements]
+        return "[" + ", ".join(elements_code) + "]"
+
+    def visit_array_access(self, node: ArrayAccess) -> str:
+        """
+        Visits an array access node.
+        Generates: array[index]
+        """
+        array_code = self.visit_expression(node.array)
+        index_code = self.visit_expression(node.index)
+        return f"{array_code}[{index_code}]"
+
+    def visit_function_call(self, node: FunctionCall) -> str:
+        """
+        Visits a function call node.
+        Generates: name(arg1, arg2, ...)
+        """
+        args_code = [self.visit_expression(arg) for arg in node.arguments]
+        return f"{node.name}({', '.join(args_code)})"
 
     def get_python_type(self, simplelang_type: str) -> str:
         """Converts SimpleLang type to Python type annotation."""

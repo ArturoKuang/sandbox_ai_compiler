@@ -92,6 +92,45 @@ class WhileStatement(Statement):
         return f"WhileStatement({self.condition}, {self.body})"
 
 
+@dataclass
+class ForStatement(Statement):
+    """For statement: for (init; condition; update) { statements }"""
+    init: Optional[Statement]
+    condition: Optional['Expression']
+    update: Optional[Statement]
+    body: List[Statement]
+    line: int
+    column: int
+
+    def __repr__(self) -> str:
+        return f"ForStatement({self.init}, {self.condition}, {self.update}, {self.body})"
+
+
+@dataclass
+class FunctionDeclaration(Statement):
+    """Function declaration: function name(params) : return_type { body }"""
+    name: str
+    params: List[tuple]  # List of (type, name) tuples
+    return_type: str
+    body: List[Statement]
+    line: int
+    column: int
+
+    def __repr__(self) -> str:
+        return f"FunctionDeclaration({self.name}, {self.params}, {self.return_type}, {self.body})"
+
+
+@dataclass
+class ReturnStatement(Statement):
+    """Return statement: return expr;"""
+    expression: Optional['Expression']
+    line: int
+    column: int
+
+    def __repr__(self) -> str:
+        return f"ReturnStatement({self.expression})"
+
+
 # Expressions
 
 class Expression(ASTNode):
@@ -155,3 +194,38 @@ class UnaryOp(Expression):
 
     def __repr__(self) -> str:
         return f"UnaryOp({self.operator}, {self.operand})"
+
+
+@dataclass
+class ArrayLiteral(Expression):
+    """Array literal: [expr1, expr2, ...]"""
+    elements: List[Expression]
+    line: int
+    column: int
+
+    def __repr__(self) -> str:
+        return f"ArrayLiteral({self.elements})"
+
+
+@dataclass
+class ArrayAccess(Expression):
+    """Array access: array[index]"""
+    array: Expression
+    index: Expression
+    line: int
+    column: int
+
+    def __repr__(self) -> str:
+        return f"ArrayAccess({self.array}, {self.index})"
+
+
+@dataclass
+class FunctionCall(Expression):
+    """Function call: name(args)"""
+    name: str
+    arguments: List[Expression]
+    line: int
+    column: int
+
+    def __repr__(self) -> str:
+        return f"FunctionCall({self.name}, {self.arguments})"

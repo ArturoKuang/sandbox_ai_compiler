@@ -7,8 +7,9 @@ Performs type checking, scope analysis, and other semantic validations.
 from typing import Dict, Set, Optional
 from compiler.parser.ast_nodes import (
     ASTNode, Program, Statement, Declaration, Assignment, PrintStatement,
-    IfStatement, WhileStatement,
-    Expression, BinaryOp, UnaryOp, Number, Identifier, Boolean
+    IfStatement, WhileStatement, ForStatement, FunctionDeclaration, ReturnStatement,
+    Expression, BinaryOp, UnaryOp, Number, Identifier, Boolean,
+    ArrayLiteral, ArrayAccess, FunctionCall
 )
 
 
@@ -71,6 +72,12 @@ class SemanticAnalyzer:
             self.visit_if_statement(node)
         elif isinstance(node, WhileStatement):
             self.visit_while_statement(node)
+        elif isinstance(node, ForStatement):
+            self.visit_for_statement(node)
+        elif isinstance(node, FunctionDeclaration):
+            self.visit_function_declaration(node)
+        elif isinstance(node, ReturnStatement):
+            self.visit_return_statement(node)
         else:
             raise SemanticError(
                 f"Unknown statement type: {type(node).__name__}",
@@ -171,6 +178,34 @@ class SemanticAnalyzer:
         for stmt in node.body:
             self.visit_statement(stmt)
 
+    def visit_for_statement(self, node: ForStatement) -> None:
+        """Visits a for statement node. Simplified - no deep type checking for now."""
+        if node.init:
+            self.visit_statement(node.init)
+        if node.condition:
+            self.visit_expression(node.condition)
+        if node.update:
+            self.visit_statement(node.update)
+        for stmt in node.body:
+            self.visit_statement(stmt)
+
+    def visit_function_declaration(self, node: FunctionDeclaration) -> None:
+        """Visits a function declaration. Simplified - register function and check body."""
+        # Register function in symbol table (simplified)
+        self.symbol_table.declare(node.name, node.return_type, node.line, node.column)
+        # Register parameters in symbol table
+        for param_type, param_name in node.params:
+            if not self.symbol_table.is_defined(param_name):
+                self.symbol_table.symbols[param_name] = param_type
+        # Visit body
+        for stmt in node.body:
+            self.visit_statement(stmt)
+
+    def visit_return_statement(self, node: ReturnStatement) -> None:
+        """Visits a return statement."""
+        if node.expression:
+            self.visit_expression(node.expression)
+
     def visit_expression(self, node: Expression) -> str:
         """
         Visits an expression node and returns its type.
@@ -185,6 +220,12 @@ class SemanticAnalyzer:
             return self.visit_binary_op(node)
         elif isinstance(node, UnaryOp):
             return self.visit_unary_op(node)
+        elif isinstance(node, ArrayLiteral):
+            return self.visit_array_literal(node)
+        elif isinstance(node, ArrayAccess):
+            return self.visit_array_access(node)
+        elif isinstance(node, FunctionCall):
+            return self.visit_function_call(node)
         else:
             raise SemanticError(
                 f"Unknown expression type: {type(node).__name__}",
@@ -294,3 +335,21 @@ class SemanticAnalyzer:
             node.line,
             node.column
         )
+
+    def visit_array_literal(self, node: ArrayLiteral) -> str:
+        """Visits an array literal. Returns 'int' for simplicity."""
+        for elem in node.elements:
+            self.visit_expression(elem)
+        return "int"  # Simplified - arrays return int type
+
+    def visit_array_access(self, node: ArrayAccess) -> str:
+        """Visits an array access expression."""
+        self.visit_expression(node.array)
+        self.visit_expression(node.index)
+        return "int"  # Simplified - array elements are int
+
+    def visit_function_call(self, node: FunctionCall) -> str:
+        """Visits a function call expression."""
+        for arg in node.arguments:
+            self.visit_expression(arg)
+        return "int"  # Simplified - functions return int

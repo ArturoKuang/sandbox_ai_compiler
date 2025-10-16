@@ -7,7 +7,8 @@ Performs type checking, scope analysis, and other semantic validations.
 from typing import Dict, Set, Optional
 from compiler.parser.ast_nodes import (
     ASTNode, Program, Statement, Declaration, Assignment, PrintStatement,
-    Expression, BinaryOp, Number, Identifier
+    IfStatement, WhileStatement,
+    Expression, BinaryOp, UnaryOp, Number, Identifier, Boolean
 )
 
 
@@ -66,6 +67,10 @@ class SemanticAnalyzer:
             self.visit_assignment(node)
         elif isinstance(node, PrintStatement):
             self.visit_print_statement(node)
+        elif isinstance(node, IfStatement):
+            self.visit_if_statement(node)
+        elif isinstance(node, WhileStatement):
+            self.visit_while_statement(node)
         else:
             raise SemanticError(
                 f"Unknown statement type: {type(node).__name__}",
@@ -121,16 +126,65 @@ class SemanticAnalyzer:
         """
         self.visit_expression(node.expression)
 
+    def visit_if_statement(self, node: IfStatement) -> None:
+        """
+        Visits an if statement node.
+        Checks:
+        - Condition is a boolean expression
+        - All statements in blocks are valid
+        """
+        # Check condition type
+        condition_type = self.visit_expression(node.condition)
+        if condition_type != "bool":
+            raise SemanticError(
+                f"If condition must be bool, got {condition_type}",
+                node.line,
+                node.column
+            )
+
+        # Visit then block
+        for stmt in node.then_block:
+            self.visit_statement(stmt)
+
+        # Visit else block if present
+        if node.else_block:
+            for stmt in node.else_block:
+                self.visit_statement(stmt)
+
+    def visit_while_statement(self, node: WhileStatement) -> None:
+        """
+        Visits a while statement node.
+        Checks:
+        - Condition is a boolean expression
+        - All statements in body are valid
+        """
+        # Check condition type
+        condition_type = self.visit_expression(node.condition)
+        if condition_type != "bool":
+            raise SemanticError(
+                f"While condition must be bool, got {condition_type}",
+                node.line,
+                node.column
+            )
+
+        # Visit body
+        for stmt in node.body:
+            self.visit_statement(stmt)
+
     def visit_expression(self, node: Expression) -> str:
         """
         Visits an expression node and returns its type.
         """
         if isinstance(node, Number):
             return self.visit_number(node)
+        elif isinstance(node, Boolean):
+            return self.visit_boolean(node)
         elif isinstance(node, Identifier):
             return self.visit_identifier(node)
         elif isinstance(node, BinaryOp):
             return self.visit_binary_op(node)
+        elif isinstance(node, UnaryOp):
+            return self.visit_unary_op(node)
         else:
             raise SemanticError(
                 f"Unknown expression type: {type(node).__name__}",
@@ -141,32 +195,99 @@ class SemanticAnalyzer:
         """Visits a number node. Numbers are always type 'int'."""
         return "int"
 
+    def visit_boolean(self, node: Boolean) -> str:
+        """Visits a boolean node. Booleans are always type 'bool'."""
+        return "bool"
+
     def visit_identifier(self, node: Identifier) -> str:
         """Visits an identifier node. Returns the variable's type."""
         return self.symbol_table.lookup(node.name, node.line, node.column)
+
+    def visit_unary_op(self, node: UnaryOp) -> str:
+        """
+        Visits a unary operation node.
+        Checks:
+        - Operator is valid for the operand type
+        Returns the result type.
+        """
+        operand_type = self.visit_expression(node.operand)
+
+        # NOT operator requires bool operand
+        if node.operator == '!':
+            if operand_type != "bool":
+                raise SemanticError(
+                    f"Unary operator '!' requires bool operand, got {operand_type}",
+                    node.line,
+                    node.column
+                )
+            return "bool"
+
+        # Unary minus requires int operand
+        if node.operator == '-':
+            if operand_type != "int":
+                raise SemanticError(
+                    f"Unary operator '-' requires int operand, got {operand_type}",
+                    node.line,
+                    node.column
+                )
+            return "int"
+
+        raise SemanticError(
+            f"Unknown unary operator: {node.operator}",
+            node.line,
+            node.column
+        )
 
     def visit_binary_op(self, node: BinaryOp) -> str:
         """
         Visits a binary operation node.
         Checks:
-        - Both operands have the same type
+        - Operands have appropriate types for the operator
         - Operators are valid for the operand types
         Returns the result type.
         """
         left_type = self.visit_expression(node.left)
         right_type = self.visit_expression(node.right)
 
-        # For Phase 1, we only support int operations
-        if left_type != "int" or right_type != "int":
-            raise SemanticError(
-                f"Binary operation '{node.operator}' requires int operands",
-                node.line,
-                node.column
-            )
-
-        # All arithmetic operators on ints return int
+        # Arithmetic operators: require int operands, return int
         if node.operator in ('+', '-', '*', '/', '%'):
+            if left_type != "int" or right_type != "int":
+                raise SemanticError(
+                    f"Arithmetic operator '{node.operator}' requires int operands",
+                    node.line,
+                    node.column
+                )
             return "int"
+
+        # Comparison operators: require int operands, return bool
+        if node.operator in ('<', '<=', '>', '>='):
+            if left_type != "int" or right_type != "int":
+                raise SemanticError(
+                    f"Comparison operator '{node.operator}' requires int operands",
+                    node.line,
+                    node.column
+                )
+            return "bool"
+
+        # Equality operators: require same types, return bool
+        if node.operator in ('==', '!='):
+            if left_type != right_type:
+                raise SemanticError(
+                    f"Equality operator '{node.operator}' requires operands of same type",
+                    node.line,
+                    node.column
+                )
+            return "bool"
+
+        # Logical operators: require bool operands, return bool
+        if node.operator in ('&&', '||'):
+            if left_type != "bool" or right_type != "bool":
+                raise SemanticError(
+                    f"Logical operator '{node.operator}' requires bool operands",
+                    node.line,
+                    node.column
+                )
+            return "bool"
 
         raise SemanticError(
             f"Unknown binary operator: {node.operator}",

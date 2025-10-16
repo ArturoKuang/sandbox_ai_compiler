@@ -23,7 +23,13 @@ class Lexer:
     # Keyword mapping
     KEYWORDS = {
         'int': TokenType.INT,
+        'bool': TokenType.BOOL,
         'print': TokenType.PRINT,
+        'if': TokenType.IF,
+        'else': TokenType.ELSE,
+        'while': TokenType.WHILE,
+        'true': TokenType.TRUE,
+        'false': TokenType.FALSE,
     }
 
     def __init__(self, source: str):
@@ -130,8 +136,57 @@ class Lexer:
                 self.tokens.append(Token(TokenType.MODULO, char, line, column))
                 self.advance()
             elif char == '=':
-                self.tokens.append(Token(TokenType.ASSIGN, char, line, column))
-                self.advance()
+                # Check for ==
+                if self.peek_char() == '=':
+                    self.tokens.append(Token(TokenType.EQ, '==', line, column))
+                    self.advance()
+                    self.advance()
+                else:
+                    self.tokens.append(Token(TokenType.ASSIGN, char, line, column))
+                    self.advance()
+            elif char == '!':
+                # Check for !=
+                if self.peek_char() == '=':
+                    self.tokens.append(Token(TokenType.NE, '!=', line, column))
+                    self.advance()
+                    self.advance()
+                else:
+                    self.tokens.append(Token(TokenType.NOT, char, line, column))
+                    self.advance()
+            elif char == '<':
+                # Check for <=
+                if self.peek_char() == '=':
+                    self.tokens.append(Token(TokenType.LE, '<=', line, column))
+                    self.advance()
+                    self.advance()
+                else:
+                    self.tokens.append(Token(TokenType.LT, char, line, column))
+                    self.advance()
+            elif char == '>':
+                # Check for >=
+                if self.peek_char() == '=':
+                    self.tokens.append(Token(TokenType.GE, '>=', line, column))
+                    self.advance()
+                    self.advance()
+                else:
+                    self.tokens.append(Token(TokenType.GT, char, line, column))
+                    self.advance()
+            elif char == '&':
+                # Check for &&
+                if self.peek_char() == '&':
+                    self.tokens.append(Token(TokenType.AND, '&&', line, column))
+                    self.advance()
+                    self.advance()
+                else:
+                    raise LexerError(f"Unexpected character '{char}' (did you mean '&&'?)", line, column)
+            elif char == '|':
+                # Check for ||
+                if self.peek_char() == '|':
+                    self.tokens.append(Token(TokenType.OR, '||', line, column))
+                    self.advance()
+                    self.advance()
+                else:
+                    raise LexerError(f"Unexpected character '{char}' (did you mean '||'?)", line, column)
             elif char == ';':
                 self.tokens.append(Token(TokenType.SEMICOLON, char, line, column))
                 self.advance()
@@ -140,6 +195,21 @@ class Lexer:
                 self.advance()
             elif char == ')':
                 self.tokens.append(Token(TokenType.RPAREN, char, line, column))
+                self.advance()
+            elif char == '{':
+                self.tokens.append(Token(TokenType.LBRACE, char, line, column))
+                self.advance()
+            elif char == '}':
+                self.tokens.append(Token(TokenType.RBRACE, char, line, column))
+                self.advance()
+            elif char == '[':
+                self.tokens.append(Token(TokenType.LBRACKET, char, line, column))
+                self.advance()
+            elif char == ']':
+                self.tokens.append(Token(TokenType.RBRACKET, char, line, column))
+                self.advance()
+            elif char == ',':
+                self.tokens.append(Token(TokenType.COMMA, char, line, column))
                 self.advance()
             else:
                 raise LexerError(f"Unexpected character '{char}'", line, column)

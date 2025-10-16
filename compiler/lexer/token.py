@@ -12,7 +12,13 @@ class TokenType(Enum):
 
     # Keywords
     INT = auto()
+    BOOL = auto()
     PRINT = auto()
+    IF = auto()
+    ELSE = auto()
+    WHILE = auto()
+    TRUE = auto()
+    FALSE = auto()
 
     # Identifiers and literals
     IDENTIFIER = auto()
@@ -26,10 +32,28 @@ class TokenType(Enum):
     MODULO = auto()
     ASSIGN = auto()
 
+    # Comparison operators
+    EQ = auto()          # ==
+    NE = auto()          # !=
+    LT = auto()          # <
+    LE = auto()          # <=
+    GT = auto()          # >
+    GE = auto()          # >=
+
+    # Logical operators
+    AND = auto()         # &&
+    OR = auto()          # ||
+    NOT = auto()         # !
+
     # Delimiters
     SEMICOLON = auto()
     LPAREN = auto()
     RPAREN = auto()
+    LBRACE = auto()      # {
+    RBRACE = auto()      # }
+    LBRACKET = auto()    # [
+    RBRACKET = auto()    # ]
+    COMMA = auto()       # ,
 
     # Special
     EOF = auto()

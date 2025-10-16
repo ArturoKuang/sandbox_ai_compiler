@@ -3,7 +3,7 @@ Abstract Syntax Tree (AST) node definitions for SimpleLang.
 """
 
 from dataclasses import dataclass
-from typing import List, Any
+from typing import List, Any, Optional
 from abc import ABC, abstractmethod
 
 
@@ -67,6 +67,31 @@ class PrintStatement(Statement):
         return f"PrintStatement({self.expression})"
 
 
+@dataclass
+class IfStatement(Statement):
+    """If statement: if (condition) { statements } else { statements }"""
+    condition: 'Expression'
+    then_block: List[Statement]
+    else_block: Optional[List[Statement]]
+    line: int
+    column: int
+
+    def __repr__(self) -> str:
+        return f"IfStatement({self.condition}, {self.then_block}, {self.else_block})"
+
+
+@dataclass
+class WhileStatement(Statement):
+    """While statement: while (condition) { statements }"""
+    condition: 'Expression'
+    body: List[Statement]
+    line: int
+    column: int
+
+    def __repr__(self) -> str:
+        return f"WhileStatement({self.condition}, {self.body})"
+
+
 # Expressions
 
 class Expression(ASTNode):
@@ -107,3 +132,26 @@ class Identifier(Expression):
 
     def __repr__(self) -> str:
         return f"Identifier({self.name})"
+
+
+@dataclass
+class Boolean(Expression):
+    """Boolean literal (true/false)."""
+    value: bool
+    line: int
+    column: int
+
+    def __repr__(self) -> str:
+        return f"Boolean({self.value})"
+
+
+@dataclass
+class UnaryOp(Expression):
+    """Unary operation: op expr"""
+    operator: str
+    operand: Expression
+    line: int
+    column: int
+
+    def __repr__(self) -> str:
+        return f"UnaryOp({self.operator}, {self.operand})"

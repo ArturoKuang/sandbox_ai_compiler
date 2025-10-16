@@ -7,7 +7,8 @@ Converts AST to Python source code.
 from typing import List
 from compiler.parser.ast_nodes import (
     ASTNode, Program, Statement, Declaration, Assignment, PrintStatement,
-    Expression, BinaryOp, Number, Identifier
+    IfStatement, WhileStatement,
+    Expression, BinaryOp, UnaryOp, Number, Identifier, Boolean
 )
 
 
@@ -42,6 +43,10 @@ class CodeGenerator:
             self.visit_assignment(node)
         elif isinstance(node, PrintStatement):
             self.visit_print_statement(node)
+        elif isinstance(node, IfStatement):
+            self.visit_if_statement(node)
+        elif isinstance(node, WhileStatement):
+            self.visit_while_statement(node)
 
     def visit_declaration(self, node: Declaration) -> None:
         """
@@ -68,25 +73,86 @@ class CodeGenerator:
         expr_code = self.visit_expression(node.expression)
         self.emit(f"print({expr_code})")
 
+    def visit_if_statement(self, node: IfStatement) -> None:
+        """
+        Visits an if statement node.
+        Generates:
+        if condition:
+            statements
+        else:
+            statements
+        """
+        condition_code = self.visit_expression(node.condition)
+        self.emit(f"if {condition_code}:")
+        self.indent_level += 1
+        for stmt in node.then_block:
+            self.visit_statement(stmt)
+        self.indent_level -= 1
+
+        if node.else_block:
+            self.emit("else:")
+            self.indent_level += 1
+            for stmt in node.else_block:
+                self.visit_statement(stmt)
+            self.indent_level -= 1
+
+    def visit_while_statement(self, node: WhileStatement) -> None:
+        """
+        Visits a while statement node.
+        Generates:
+        while condition:
+            statements
+        """
+        condition_code = self.visit_expression(node.condition)
+        self.emit(f"while {condition_code}:")
+        self.indent_level += 1
+        for stmt in node.body:
+            self.visit_statement(stmt)
+        self.indent_level -= 1
+
     def visit_expression(self, node: Expression) -> str:
         """
         Visits an expression node and returns the generated code.
         """
         if isinstance(node, Number):
             return self.visit_number(node)
+        elif isinstance(node, Boolean):
+            return self.visit_boolean(node)
         elif isinstance(node, Identifier):
             return self.visit_identifier(node)
         elif isinstance(node, BinaryOp):
             return self.visit_binary_op(node)
+        elif isinstance(node, UnaryOp):
+            return self.visit_unary_op(node)
         return ""
 
     def visit_number(self, node: Number) -> str:
         """Visits a number node."""
         return str(node.value)
 
+    def visit_boolean(self, node: Boolean) -> str:
+        """Visits a boolean node."""
+        return "True" if node.value else "False"
+
     def visit_identifier(self, node: Identifier) -> str:
         """Visits an identifier node."""
         return node.name
+
+    def visit_unary_op(self, node: UnaryOp) -> str:
+        """
+        Visits a unary operation node.
+        Generates: (operator operand)
+        """
+        operand_code = self.visit_expression(node.operand)
+
+        # Convert SimpleLang operators to Python operators
+        operator_map = {
+            '!': 'not',
+            '-': '-'
+        }
+        operator = operator_map.get(node.operator, node.operator)
+
+        return f"({operator} {operand_code})"
 
     def visit_binary_op(self, node: BinaryOp) -> str:
         """
@@ -98,8 +164,12 @@ class CodeGenerator:
         right_code = self.visit_expression(node.right)
 
         # Convert SimpleLang operators to Python operators
-        # Use // for integer division instead of / to maintain int type
-        operator = '//' if node.operator == '/' else node.operator
+        operator_map = {
+            '/': '//',   # Integer division
+            '&&': 'and',
+            '||': 'or',
+        }
+        operator = operator_map.get(node.operator, node.operator)
 
         # Add parentheses for clarity
         # For simple cases, we could optimize this, but for correctness we always add them
@@ -109,5 +179,6 @@ class CodeGenerator:
         """Converts SimpleLang type to Python type annotation."""
         type_map = {
             'int': 'int',
+            'bool': 'bool',
         }
         return type_map.get(simplelang_type, simplelang_type)

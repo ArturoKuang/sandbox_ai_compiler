@@ -1,0 +1,1 @@
+"create a unit test for our language .sl to implement djikstras, a*, and N-queens (recursive solution) algorithms. if our own compiler does not support language feature needed to implement algorithms, add features or fix the compiler until the algorithms work

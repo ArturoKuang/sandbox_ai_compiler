@@ -162,12 +162,8 @@ class Parser:
             value = self.parse_expression()
             self.expect(TokenType.SEMICOLON)
 
-            # Create a special identifier name for array element assignment
-            # We'll handle this in codegen by detecting the pattern
-            # For now, store the array access node as a special assignment target
-            # We need to extend Assignment node, but for now use a workaround
-            # Store name as "name[index_expr]" - will need special handling in codegen
-            return Assignment(name + "[INDEX]", value, id_token.line, id_token.column)
+            # Create an Assignment node with an index expression
+            return Assignment(name, value, id_token.line, id_token.column, index)
 
         self.expect(TokenType.ASSIGN)
         value = self.parse_expression()

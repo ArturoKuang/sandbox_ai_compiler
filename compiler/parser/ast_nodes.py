@@ -46,13 +46,16 @@ class Declaration(Statement):
 
 @dataclass
 class Assignment(Statement):
-    """Variable assignment statement: name = expr;"""
+    """Variable assignment statement: name = expr; or array[index] = expr;"""
     name: str
     value: 'Expression'
     line: int
     column: int
+    index: Optional['Expression'] = None  # For array element assignment
 
     def __repr__(self) -> str:
+        if self.index:
+            return f"Assignment({self.name}[{self.index}], {self.value})"
         return f"Assignment({self.name}, {self.value})"
 
 

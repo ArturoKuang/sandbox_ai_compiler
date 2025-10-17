@@ -166,7 +166,9 @@ Examples:
         if args.run:
             print("\nRunning generated code:")
             print("-" * 40)
-            exec(python_code)
+            # Create a namespace for exec to avoid scoping issues
+            namespace = {}
+            exec(python_code, namespace)
 
     except CompilerError as e:
         print(f"Compilation error: {e}", file=sys.stderr)

@@ -112,19 +112,36 @@ class SemanticAnalyzer:
         - Variable is already declared
         - Expression type matches variable type
         """
-        # Look up variable type
-        var_type = self.symbol_table.lookup(node.name, node.line, node.column)
+        # Handle array element assignment (when index is present)
+        if node.index is not None:
+            # Look up the array variable type
+            var_type = self.symbol_table.lookup(node.name, node.line, node.column)
+            # Check index expression
+            self.visit_expression(node.index)
+            # Check expression type (array elements are always int)
+            expr_type = self.visit_expression(node.value)
+            # For arrays, we assume elements are always int
+            if expr_type != "int":
+                raise SemanticError(
+                    f"Type mismatch: cannot assign {expr_type} to array element (int)",
+                    node.line,
+                    node.column
+                )
+        else:
+            # Regular variable assignment
+            # Look up variable type
+            var_type = self.symbol_table.lookup(node.name, node.line, node.column)
 
-        # Check expression type
-        expr_type = self.visit_expression(node.value)
+            # Check expression type
+            expr_type = self.visit_expression(node.value)
 
-        # Verify type compatibility
-        if var_type != expr_type:
-            raise SemanticError(
-                f"Type mismatch: cannot assign {expr_type} to {var_type}",
-                node.line,
-                node.column
-            )
+            # Verify type compatibility
+            if var_type != expr_type:
+                raise SemanticError(
+                    f"Type mismatch: cannot assign {expr_type} to {var_type}",
+                    node.line,
+                    node.column
+                )
 
     def visit_print_statement(self, node: PrintStatement) -> None:
         """
@@ -193,13 +210,16 @@ class SemanticAnalyzer:
         """Visits a function declaration. Simplified - register function and check body."""
         # Register function in symbol table (simplified)
         self.symbol_table.declare(node.name, node.return_type, node.line, node.column)
-        # Register parameters in symbol table
+        # Save current symbol table and create a new scope for function
+        saved_symbols = self.symbol_table.symbols.copy()
+        # Register parameters in symbol table (will shadow any global variables)
         for param_type, param_name in node.params:
-            if not self.symbol_table.is_defined(param_name):
-                self.symbol_table.symbols[param_name] = param_type
+            self.symbol_table.symbols[param_name] = param_type
         # Visit body
         for stmt in node.body:
             self.visit_statement(stmt)
+        # Restore original symbol table (exit function scope)
+        self.symbol_table.symbols = saved_symbols
 
     def visit_return_statement(self, node: ReturnStatement) -> None:
         """Visits a return statement."""

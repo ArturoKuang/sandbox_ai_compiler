@@ -67,10 +67,16 @@ class CodeGenerator:
     def visit_assignment(self, node: Assignment) -> None:
         """
         Visits an assignment node.
-        Generates: name = expression
+        Generates: name = expression or name[index] = expression
         """
         expr_code = self.visit_expression(node.value)
-        self.emit(f"{node.name} = {expr_code}")
+        if node.index is not None:
+            # Array element assignment
+            index_code = self.visit_expression(node.index)
+            self.emit(f"{node.name}[{index_code}] = {expr_code}")
+        else:
+            # Regular variable assignment
+            self.emit(f"{node.name} = {expr_code}")
 
     def visit_print_statement(self, node: PrintStatement) -> None:
         """
